@@ -68,7 +68,7 @@ struct EuclideanDistanceTransform
 	Box3D bb;
 	RigidTransform currentTransform;
 	Real cellSize;   			 //Needs to be set
-	Geometry::CollisionMesh m;  	 //Needs to be initialized
+	Geometry::CollisionMesh m;   //Needs to be initialized
 	Array3D<Real>* distance; 	 //Initialize the size
 	Array3D<Vector3>* gradient;
 	std::vector<IntTriple> surfaceCells;
@@ -85,7 +85,8 @@ bool Collide(SpatialHashPC&, EuclideanDistanceTransform&, std::vector<Meshing::V
 
 bool Collide(CollisionPointCloud&, EuclideanDistanceTransform&);
 
-//bool NewCollide(CollisionPointCloud&, EuclideanDistanceTransform&);
+bool NewCollide(SpatialHashPC&, EuclideanDistanceTransform&);
+
 
 } //namespace Geometry
 

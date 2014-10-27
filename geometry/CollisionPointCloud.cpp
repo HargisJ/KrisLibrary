@@ -12,6 +12,7 @@ CollisionPointCloud::CollisionPointCloud(const Meshing::PointCloud3D& _pc)
 {
   currentTransform.setIdentity();
   InitCollisions();
+}
 
 void CollisionPointCloud::InitCollisions()
 {
@@ -281,7 +282,8 @@ void EuclideanDistanceTransform::FitAABB()
 *Also, a set of surface and interior cells of the EDT should be stored in the object instead of having to be generated
 * every time in the collision function.
 */
-bool Collide(SpatialHashPC& sh, EuclideanDistanceTransform& edt, std::vector<Meshing::Vector3>& collisionPoints){
+bool Collide(SpatialHashPC& sh, EuclideanDistanceTransform& edt, std::vector<Meshing::Vector3>& collisionPoints)
+{
   Timer timer;
   bool c = false;
   if(sh.cellSize < 1.733*edt.cellSize)
@@ -522,8 +524,9 @@ bool Collide(SpatialHashPC& sh, EuclideanDistanceTransform& edt, std::vector<Mes
   return c;
 }
 
-//Function to collide a pointcloud and mesh by do a brute-force comparison
-//  of the points in the cloud to the EDT
+
+//Function to collide a pointcloud and mesh by doing a brute-force comparison
+//  of the points in the cloud to an EDT
 bool Collide(CollisionPointCloud& pc, EuclideanDistanceTransform& edt)
 {
   Vector3 transPoint;
@@ -536,7 +539,7 @@ bool Collide(CollisionPointCloud& pc, EuclideanDistanceTransform& edt)
   
   for(std::vector<Vector3>::iterator it = pc.points.begin(); it!=pc.points.end(); it++)
   {
-    pc.currentTransform.mul(*it, transPoint);
+    pc.currentTransform.mulPoint(*it, transPoint);
     if(edt.bb.contains(transPoint))
     {
       edt.currentTransform.mulPointInverse(transPoint,transPoint);
@@ -547,6 +550,64 @@ bool Collide(CollisionPointCloud& pc, EuclideanDistanceTransform& edt)
         return true;
       }
     }
+  }
+  return false;
+}
+
+
+//Collision between a pointcloud and mesh first finding the collision between AABBs
+bool NewCollide(SpatialHashPC& sh, EuclideanDistanceTransform& edt)
+{
+  AABB3D meshAABB;
+  edt.m.GetAABB(meshAABB.bmin, meshAABB.bmax);
+  Meshing::VolumeGrid vg;
+  vg.Resize(edt.distance->m, edt.distance->n, edt.distance->p);
+  vg.value = *(edt.distance);
+  vg.bb = edt.aabb; 
+  Vector3 transPoint;
+  int i,j,k;
+
+	if(sh.bb.intersects(meshAABB)){ //Test bounding boxes
+    AABB3D colBox = sh.bb;
+    colBox.setIntersection(meshAABB); //Set bounding collision box to be the intersection of the two
+    colBox.justify();
+
+
+    //Get the hash bucket indices of the collision box
+    // Vector3 minHash, maxHash;
+    // minHash = sh.Hash(colBox.bmin);
+    // maxHash = sh.Hash(colBox.bmax);
+
+    //Loop through the points in the hash buckets in the collision box 
+    Real itX, itY, itZ;
+    itX = colBox.bmin.x;
+    itY = colBox.bmin.y;
+    itZ = colBox.bmin.z;
+    for(Real itX = colBox.bmin.x; sh.Hash(itX, colBox.bmin.y, colBox.bmin.z) <= sh.Hash(colBox.bmax.x, colBox.bmin.y, colBox.bmin.z); itX += sh.cellSize)
+    {
+      for(Real itY = colBox.bmin.y; sh.Hash(colBox.bmin.x, itY, colBox.bmin.z) <= sh.Hash(colBox.bmin.x, colBox.bmax.y, colBox.bmin.z); itY += sh.cellSize)
+      {
+        for(Real itZ = colBox.bmin.z; sh.Hash(colBox.bmin.x, colBox.bmin.y, itZ) <= sh.Hash(colBox.bmin.x, colBox.bmin.y, colBox.bmax.z); itZ += sh.cellSize)
+        {
+          if(!sh.table[sh.Hash(itX,itY,itZ)].empty())
+          {
+            for(std::vector<Vector3>::iterator ptIt = sh.table[sh.Hash(itX,itY,itZ)].begin(); ptIt != sh.table[sh.Hash(itX,itY,itZ)].end(); ptIt++)
+            {
+              sh.currentTransform.mulPoint(*ptIt, transPoint);
+              if(edt.bb.contains(transPoint))
+              {
+                edt.currentTransform.mulPointInverse(transPoint,transPoint);
+                vg.GetIndex(transPoint,i,j,k);
+                if(vg.value(i,j,k) <= 0)
+                {
+                  return true;
+                }
+              }
+            }
+          }
+        }
+      }
+    }     
   }
   return false;
 }
